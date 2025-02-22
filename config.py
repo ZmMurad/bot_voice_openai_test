@@ -6,4 +6,4 @@ class Settings(BaseSettings):
     ASSISTANT_ID: str
 
     class Config:
-        env_file = ".env"
+        case_sensitive = True
