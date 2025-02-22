@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from aiogram import Bot, Dispatcher
 from config import Settings
 from openai import AsyncOpenAI
@@ -25,6 +27,7 @@ async def create_assistant():
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await create_assistant()
+    logging.info('Bot starting')
     await dp.start_polling(bot)
 
 
