@@ -6,27 +6,29 @@ from config import Settings
 from openai import AsyncOpenAI
 from context_middleware import ContextMiddleware
 from main_router import router
-
-settings = Settings()
-bot = Bot(settings.BOT_TOKEN)
-dp = Dispatcher()
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-dp.update.middleware(ContextMiddleware(client, bot,settings))
-dp.include_router(router)
+from openai_client import OpenAIService
 
 
-async def create_assistant():
-    assistant = await client.beta.assistants.create(
-        name="Telegram Assistant",
-        instructions="Ты полезный ассистент для Telegram бота",
-        model="gpt-4o"
-    )
-    settings.ASSISTANT_ID = assistant.id
+
+
+
+
+
 
 
 async def main():
+    settings = Settings()
+    if not settings.ASSISTANT_ID:
+        await settings.init_assistant()
+
+        if not settings.ASSISTANT_ID:
+            raise RuntimeError("Failed to create assistant")
+    bot = Bot(settings.BOT_TOKEN)
+    dp = Dispatcher()
+    client = OpenAIService(settings.ASSISTANT_ID,settings.OPENAI_API_KEY)
+    dp.update.middleware(ContextMiddleware(client, bot, settings))
+    dp.include_router(router)
     await bot.delete_webhook(drop_pending_updates=True)
-    await create_assistant()
     logging.info('Bot starting')
     await dp.start_polling(bot)
 
