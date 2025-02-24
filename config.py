@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     async def init_assistant(self):
         """Создает ассистента при первом запуске"""
-        if not self.ASSISTANT_ID:
+        if not self.ASSISTANT_ID or self.ASSISTANT_ID=="":
             logging.info('Create ASSISTANT_ID')
             client = AsyncOpenAI(api_key=self.OPENAI_API_KEY)
             assistant = await client.beta.assistants.create(
