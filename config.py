@@ -1,6 +1,6 @@
 import logging
 
-from aiofiles import os
+import os
 from openai import AsyncOpenAI
 from pydantic_settings import BaseSettings
 
