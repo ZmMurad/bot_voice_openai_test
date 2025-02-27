@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        env_file = "../.env"
+        env_file = ".env"
 
     async def init_assistant(self):
         """Создает ассистента при первом запуске"""
@@ -31,8 +31,8 @@ class Settings(BaseSettings):
                 model="gpt-4-1106-preview"
             )
             self.ASSISTANT_ID = assistant.id
-            if os.path.exists("../.env"):
-                with open("../.env", "a") as f:
+            if os.path.exists(".env"):
+                with open(".env", "a") as f:
                     f.write(f"\nASSISTANT_ID={assistant.id}")
 
             print(f"🆕 Created new Assistant ID: {assistant.id}")

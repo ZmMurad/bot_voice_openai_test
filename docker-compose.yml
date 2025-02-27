@@ -8,9 +8,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypass
-      POSTGRES_DB: mydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vFtrDSpWLCunytYNUkQkiSWoXgZdaFzq
+      POSTGRES_DB: railway
 
   app:
     build: .
@@ -21,5 +21,5 @@ services:
     volumes:
       - ./app:/app
     env_file:
-      - .env
+      - app/.env
 
