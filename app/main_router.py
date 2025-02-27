@@ -6,8 +6,10 @@ from aiogram.filters import Command
 from openai import AsyncOpenAI
 from aiogram import F
 
+from models import save_to_db
 from config import Settings
-from openai_client import OpenAIService
+from database import AsyncSessionLocal
+from openai_client import OpenAIService, validate_value
 from utils import generate_unique_name, cleanup_files
 
 router = Router()
@@ -49,3 +51,32 @@ async def handle_voice(message: types.Message, client_ai: OpenAIService, bot: Bo
     except Exception as e:
         await message.answer(f"🚨 Ошибка: {str(e)}")
         cleanup_files(audio_path, speech_path)
+
+
+@router.message(Command("myvalue"))
+async def ask_value(message: types.Message):
+    """
+    Хендлер, который просто просит пользователя ввести / сказать свою ценность.
+    """
+    await message.answer("Пожалуйста, опишите вашу ключевую ценность (короткой фразой или одним словом).")
+
+@router.message(F.content_type == 'text')
+async def handle_value(message: types.Message,client_ai:OpenAIService):
+    print('Начали обработку')
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await client_ai.identify_value(message.text)
+            if "error" in result:
+                return await message.answer(f"Ошибка: {result['error']}")
+            if "function_call" in result:
+                args = result["function_call"]["arguments"]
+                if validate_value(args["description"]):
+                    await save_to_db(message.from_user.id, args, session)
+                    await message.answer("✅ Ценность сохранена!")
+                else:
+                    await message.answer("🚫 Некорректное описание. Попробуйте снова.")
+            else:
+                await message.answer(result["response"])
+        except Exception as e:
+            await session.rollback()
+            await message.answer(f"Ошибка: {str(e)}")

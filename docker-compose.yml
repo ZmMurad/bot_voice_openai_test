@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: my_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_DB: mydb
+
+  app:
+    build: .
+    container_name: my_ai_bot
+    restart: unless-stopped
+    depends_on:
+      - db
+    volumes:
+      - ./app:/app
+    env_file:
+      - .env
+    command: >
+      bash -c "python -m main"
+

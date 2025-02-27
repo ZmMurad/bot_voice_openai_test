@@ -3,7 +3,6 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from config import Settings
-from openai import AsyncOpenAI
 from context_middleware import ContextMiddleware
 from main_router import router
 from openai_client import OpenAIService
