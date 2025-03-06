@@ -33,13 +33,17 @@ async def handle_voice(message: types.Message, client_ai: OpenAIService, bot: Bo
                 file=f, model="whisper-1"
             )
 
-        await process_assistant_response(
-            message=message,
+        text,audio = await process_assistant_response(
+            user_id=message.from_user.id,
             client_ai=client_ai,
             input_text=transcript.text,
             is_voice=True,
             bot=bot
         )
+        if not audio:
+            await message.answer(text)
+        else:
+            await message.answer_voice(audio,caption=text[:1000])
 
     except Exception as e:
         logging.error(f"Voice processing error: {str(e)}")

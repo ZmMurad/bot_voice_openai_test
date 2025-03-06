@@ -14,6 +14,8 @@ class OpenAIService:
     def __init__(self, assistant_id: str,api_key: str):
         self.client = AsyncOpenAI(api_key=api_key)
         self.assistant_id = assistant_id
+        self.thread=None
+        self.run=None
         self.tools = [
             {
                 "type": "function",
@@ -38,6 +40,16 @@ class OpenAIService:
             }
         ]
 
+    async def submit_result(self, thread_id: str, run_id: str, success: bool,tool_call_id=None):
+        await self.client.beta.threads.runs.submit_tool_outputs(
+            thread_id=thread_id,
+            run_id=run_id,
+            tool_outputs=[{
+                "tool_call_id": tool_call_id,
+                "output": json.dumps({"success": success})
+            }]
+        )
+
     async def identify_value(self, user_input: str) -> dict:
         try:
             thread = await self.client.beta.threads.create()
@@ -46,12 +58,14 @@ class OpenAIService:
                 content=user_input,
                 role="user"
             )
+            self.thread=thread
 
             run = await self.client.beta.threads.runs.create_and_poll(
                 thread_id=thread.id,
                 assistant_id=self.assistant_id,
                 tools=self.tools
             )
+            self.run=run
 
             if run.status == "requires_action":
                 return self._handle_function_call(run)
@@ -107,12 +121,12 @@ class OpenAIService:
 
 
 
-def validate_value(description: str) -> bool:
+async def validate_value(description: str,client:OpenAIService) -> bool:
     """Validate value description using GPT-4"""
-    client = OpenAI(api_key=Settings().OPENAI_API_KEY)
+
 
     try:
-        response = client.chat.completions.create(
+        response = await client.client.chat.completions.create(
             model="gpt-4-1106-preview",
             messages=[{
                 "role": "system",
@@ -140,51 +154,49 @@ def validate_value(description: str) -> bool:
 
 
 async def process_assistant_response(
-        message: types.Message,
+        user_id,
         client_ai: OpenAIService,
         input_text: str,
         is_voice: bool = False,
         bot: Bot = None
 ):
     audio_path = None
+    audio=None
     speech_path = None
     session = None
-
+    response_text=""
     try:
         async with AsyncSessionLocal() as session:
             result = await client_ai.identify_value(input_text)
 
             if "error" in result:
-                await message.answer(f"Ошибка: {result['error']}")
-                return
+                return f"Ошибка: {result['error']}"
 
             if "function_call" in result:
                 # Обработка сохранения ценности
                 args = result["function_call"]["arguments"]
-
-                if validate_value(args["description"]):
+                tool_call = client_ai.run.required_action.submit_tool_outputs.tool_calls[0]
+                if await validate_value(args["description"],client_ai):
                     value = UserValue(
-                        user_id=message.from_user.id,
+                        user_id=user_id,
                         value_name=args["name"],
                         description=args["description"]
                     )
                     session.add(value)
                     await session.commit()
                     response_text = "✅ Ценность сохранена!"
+                    await client_ai.submit_result(client_ai.thread.id,client_ai.run.id,True,tool_call.id)
                 else:
                     response_text = "🚫 Некорректное описание. Попробуйте снова."
+                    await client_ai.submit_result(client_ai.thread.id, client_ai.run.id, False,tool_call.id)
 
-                # Для текстовых сообщений сразу отвечаем
                 if not is_voice:
-                    await message.answer(response_text)
-                    return
+                    return response_text
 
             else:
                 response_text = result["response"]
 
-            # Для голосовых сообщений генерируем аудио
             if is_voice:
-                msg = await message.answer("⏳ Генерируем ответ...")
                 speech_path = f"speech_{generate_unique_name()}.mp3"
 
                 response = await client_ai.client.audio.speech.create(
@@ -196,23 +208,17 @@ async def process_assistant_response(
                 response.stream_to_file(speech_path)
 
                 with open(speech_path, "rb") as audio_file:
-                    await message.answer_voice(
-                        types.BufferedInputFile(
-                            audio_file.read(),
-                            filename="response.mp3"
-                        ),
-                        caption=response_text[:1000]
+                    audio = types.BufferedInputFile(
+                        audio_file.read(),
+                        filename="response.mp3"
                     )
 
-                await msg.delete()
-
-            else:
-                await message.answer(response_text)
 
     except Exception as e:
         logging.error(f"Error: {str(e)}")
         await session.rollback()
-        await message.answer(f"🚨 Ошибка: {str(e)}")
+        response_text = f"🚨 Ошибка: {str(e)}"
 
     finally:
         cleanup_files(audio_path, speech_path)
+        return response_text,audio
