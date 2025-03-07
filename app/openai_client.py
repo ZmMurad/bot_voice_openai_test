@@ -50,6 +50,26 @@ class OpenAIService:
             }]
         )
 
+    async def analyze_mood(self, image_url: str) -> str:
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text",
+                         "text": "Опиши настроение человека на фото. Только одно слово из списка: радость, грусть, злость, нейтральное, страх, удивление"},
+                        {"type": "image_url", "image_url": {"url": image_url}}
+                    ]
+                }],
+                max_tokens=300
+            )
+            logging.warning(response.choices)
+            return response.choices[0].message.content
+        except Exception as e:
+            logging.error(f"Vision API error: {e.__dict__}")
+            return "Не могу определить настроение"
+
     async def identify_value(self, user_input: str) -> dict:
         try:
             thread = await self.client.beta.threads.create()
@@ -173,7 +193,6 @@ async def process_assistant_response(
                 return f"Ошибка: {result['error']}"
 
             if "function_call" in result:
-                # Обработка сохранения ценности
                 args = result["function_call"]["arguments"]
                 tool_call = client_ai.run.required_action.submit_tool_outputs.tool_calls[0]
                 if await validate_value(args["description"],client_ai):

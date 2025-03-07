@@ -4,6 +4,8 @@ import subprocess
 import sys
 
 from aiogram import Bot, Dispatcher
+
+from analytics import AnalyticsService
 from config import Settings
 from context_middleware import ContextMiddleware
 from main_router import router
@@ -28,9 +30,10 @@ async def main():
     bot = Bot(settings.BOT_TOKEN)
     dp = Dispatcher()
     client = OpenAIService(settings.ASSISTANT_ID, settings.OPENAI_API_KEY)
-    dp.update.middleware(ContextMiddleware(client, bot, settings))
+    analytics = AnalyticsService(settings.AMPLITUDE_API_KEY)
+    dp.update.middleware(ContextMiddleware(client, bot, settings,analytics))
     dp.include_router(router)
-    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.delete_webhook(drop_pending_updates=False)
     logging.info('Bot starting')
     await dp.start_polling(bot)
 

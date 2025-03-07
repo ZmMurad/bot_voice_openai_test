@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_HOST: str
     POSTGRES_PORT: str
+    AMPLITUDE_API_KEY:str
 
     class Config:
         case_sensitive = True
