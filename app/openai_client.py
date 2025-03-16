@@ -11,7 +11,7 @@ from config import Settings
 
 
 class OpenAIService:
-    def __init__(self, assistant_id: str,api_key: str):
+    def __init__(self, assistant_id: str,api_key: str,vector_store_id=None):
         self.client = AsyncOpenAI(api_key=api_key)
         self.assistant_id = assistant_id
         self.thread=None
@@ -37,8 +37,19 @@ class OpenAIService:
                         "required": ["name", "description"]
                     }
                 }
-            }
+            },
+            {"type": "file_search"}
         ]
+        self.tool_search_resources = {
+            "file_search": {
+                "vector_store_ids": [vector_store_id]
+            }
+        }
+        self.search_instruction = (
+            "You are a helpful assistant with access to an anxiety information document. "
+            "Use the document to answer user questions about anxiety. "
+            "When providing information from the document, cite it by name in your answer."
+        )
 
     async def submit_result(self, thread_id: str, run_id: str, success: bool,tool_call_id=None):
         await self.client.beta.threads.runs.submit_tool_outputs(
@@ -49,6 +60,16 @@ class OpenAIService:
                 "output": json.dumps({"success": success})
             }]
         )
+
+    async def update_new_instruction(self):
+        await self.client.beta.assistants.update(
+            assistant_id=self.assistant_id,
+            instructions=self.search_instruction,  # include if you want to modify instructions
+            tools=self.tools,
+            tool_resources=self.tool_search_resources
+        )
+        print("✅ Assistant updated with file_search tool and attached vector store.")
+        logging.warning("✅ Assistant updated with file_search tool and attached vector store.")
 
     async def analyze_mood(self, image_url: str) -> str:
         try:

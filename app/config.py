@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: str
     AMPLITUDE_API_KEY:str
+    REDIS_URL: str = "redis://localhost:6379/0"
+    VECTOR_STORE_ID: str = "vs_67d666ef61148191bdc50f9085d9f524"
 
     class Config:
         case_sensitive = True

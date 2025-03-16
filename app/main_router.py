@@ -4,6 +4,8 @@ from io import BytesIO
 
 from aiogram import Router, types, Bot
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message
 from openai import AsyncOpenAI
 from aiogram import F
 
@@ -78,3 +80,46 @@ async def handle_voice(message: types.Message, client_ai: OpenAIService, bot: Bo
 
     finally:
         cleanup_files(audio_path)
+
+@router.message(~F.voice & ~F.audio & ~F.photo & ~F.command)  # catch text messages that are not voice, audio, photo, or commands
+async def answer_user_question(message: Message, state: FSMContext, client_ai: OpenAIService):
+    user_input = message.text.strip()
+    if not user_input:
+        return
+
+    # 1. Retrieve or create an OpenAI conversation thread for this user
+    data = await state.get_data()  # FSM state data for this user (Chat + User in Aiogram)
+    thread_id = data.get("thread_id")
+    if thread_id is None:
+        # No thread yet for this user: create a new thread and store it
+        thread = await client_ai.client.beta.threads.create(
+            # We could attach tool_resources here if needed, but since the assistant has it, it's not required
+        )
+        thread_id = thread.id
+        await state.update_data(thread_id=thread_id)
+    # If a thread exists, we will reuse it to maintain context across messages
+
+    # 2. Send the user's message to the OpenAI thread
+    await client_ai.client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=user_input
+    )
+
+    # 3. Run the assistant to get a response (using the pre-configured assistant with file_search)
+    run = await client_ai.client.beta.threads.runs.create_and_poll(
+        thread_id=thread_id,
+        assistant_id=client_ai.assistant_id   # use the existing assistant with file_search
+    )
+
+    # 4. Retrieve the assistant's answer from the thread messages
+    if run.status == "completed":
+        messages = await client_ai.client.beta.threads.messages.list(thread_id)
+        # The latest assistant message should be included.
+        # Assuming messages.data[0] is the assistant's reply (OpenAI Beta may return latest first):
+        answer_text = messages.data[0].content[0].text.value
+    else:
+        answer_text = f"⚠️ Assistant run did not complete (status: {run.status})."
+
+    # 5. Send the answer back to the user
+    await message.answer(answer_text)
